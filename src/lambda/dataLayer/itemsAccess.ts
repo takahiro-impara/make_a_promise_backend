@@ -12,9 +12,13 @@ const XAWS = AWSXRay.captureAWS(AWS);
 
 export class ItemAccess {
   constructor(
-    private readonly docClient: DocumentClient = new XAWS.DynamoDB.DocumentClient(),
+    private readonly docClient: DocumentClient = createDynamoDBClient(),
     private readonly itemsTable = process.env.ITEM_TABLE,
     private readonly userIndex = process.env.USER_ID_INDEX,
+    private readonly s3 = new XAWS.S3({ signatureVersion: 'v4' }),
+    private readonly bucketName = process.env.SIGNED_S3_BUCKET,
+    private readonly urlExpiration = parseInt(process.env.SIGNED_URL_EXPIRATION!) || 300,
+    private readonly baseS3url = 'https://' + bucketName + '.s3-' + process.env.REGION + '.amazonaws.com/',
   ) {}
   async GetItemsFromuserId(userId: string): Promise<Item[]> {
     const params = {
@@ -75,4 +79,44 @@ export class ItemAccess {
     logger.info('updated item', UpdateItem);
     return {};
   }
+  async getUploadUrl(imageId: string) {
+    const signedurl = this.s3.getSignedUrl('putObject', {
+      Bucket: this.bucketName,
+      Key: imageId,
+      Expires: this.urlExpiration,
+    });
+
+    logger.info('signedurl', { signedurl: signedurl });
+    return signedurl;
+  }
+  async putImage(itemId: string, userId: string, imageId: string) {
+    await this.docClient
+      .update({
+        TableName: this.itemsTable || '',
+        Key: {
+          itemId: itemId,
+          userId: userId,
+        },
+        UpdateExpression: 'set attachmentUrl = :a',
+        ExpressionAttributeValues: {
+          ':a': this.baseS3url + imageId,
+        },
+        ReturnValues: 'UPDATED_NEW',
+      })
+      .promise();
+    logger.info('updated item');
+    return {};
+  }
+}
+
+function createDynamoDBClient() {
+  if (process.env.IS_OFFLINE) {
+    console.log('Creating a local DynamoDB instance');
+    return new XAWS.DynamoDB.DocumentClient({
+      region: 'localhost',
+      endpoint: 'http://localhost:8000',
+    });
+  }
+
+  return new XAWS.DynamoDB.DocumentClient();
 }

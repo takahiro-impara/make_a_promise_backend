@@ -6,6 +6,8 @@ plugins:
   - serverless-aws-documentation
   - serverless-reqvalidator-plugin
   - "@wizeline/serverless-amplify-plugin"
+  - serverless-offline
+  - serverless-dynamodb-local
 
 provider:
   name: aws
@@ -24,6 +26,7 @@ provider:
     SIGNED_S3_BUCKET: serverless-udagram-item-${self:provider.stage}-koichi
     SIGNED_URL_EXPIRATION: 300
     USER_ID_INDEX: UserIdIndex
+    REGION: ap-northeast-1
 
 custom:
   documentation:
@@ -40,6 +43,20 @@ custom:
     repository: ${self:provider.environment.Github_Repo}
     accessToken: ${self:provider.environment.Github_Access_Token}
     branch: master
+  dynamodb:
+    stages:
+      dev
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+      seed: true
+    seed:
+      development:
+        sources:
+          - table: ${self:provider.environment.ITEM_TABLE}
+            sources: [./migrations/Items.json]
+
 functions:
   Auth:
     handler: src/lambda/auth/auth0Authorizer.handler

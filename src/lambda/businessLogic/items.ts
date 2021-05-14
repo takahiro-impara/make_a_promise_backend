@@ -51,3 +51,13 @@ export async function updateItem(event: APIGatewayProxyEvent) {
   };
   return itemAccess.updateItem(updateItem);
 }
+
+export async function getUploadUrl(imageId: string) {
+  return itemAccess.getUploadUrl(imageId);
+}
+
+export async function putImage(event: APIGatewayProxyEvent, imageId: string) {
+  const itemId = event.pathParameters!.itemId || '';
+  const userId = event.requestContext.authorizer!.principalId;
+  return itemAccess.putImage(itemId, userId, imageId);
+}
